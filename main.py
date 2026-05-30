@@ -274,3 +274,31 @@ def ping():
 @app.get("/")
 def root():
     return {"status": "NB Pro MCP Server", "model": GEMINI_MODEL}
+
+
+# ── GET /mcp — SSE stream handler (Claude polls this after OAuth) ───────────
+from fastapi.responses import StreamingResponse
+import asyncio
+
+@app.get("/mcp")
+async def mcp_get(request: Request):
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        token_val = auth[7:]
+        if token_val not in tokens:
+            return JSONResponse({"error": "invalid_token"}, status_code=401,
+                headers={"WWW-Authenticate": f'Bearer realm="{BASE_URL}"'})
+
+    async def event_stream():
+        yield "data: {}\n\n"
+        await asyncio.sleep(30)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
